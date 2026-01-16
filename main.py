@@ -1,57 +1,87 @@
 from fastapi import FastAPI
 import uvicorn
 import requests
+import urllib.parse
+import os
 
 app = FastAPI()
 
+# --- CONFIGURATION ---
+API_KEY = "pk_NGG18T1EUVVmvVBz"
+HEADERS = {
+    "Content-Type": "application/json",
+    "Authorization": f"Bearer {API_KEY}"
+}
+
+# 1. HOME
 @app.get("/")
 def home():
-    return {"status": "Online", "instruction": "Add /ask/your-question to the URL"}
+    return {
+        "status": "Online",
+        "endpoints": {
+            "chat": "/ask/{message}",
+            "image": "/image/{idea}",
+            "face_detector": "/face/{message}"
+        }
+    }
 
+# 2. CHAT
 @app.get("/ask/{message}")
-def chat_with_pollinations(message: str):
-    """
-    1. Takes the message from the URL.
-    2. Sends it to Pollinations AI (Gemini Fast).
-    3. Returns the clean AI response.
-    """
-    
-    # The API Endpoint you requested
+def chat(message: str):
     url = "https://gen.pollinations.ai/v1/chat/completions"
-    
-    # The Payload structure
+    payload = {
+        "model": "gemini-fast",
+        "messages": [{"role": "user", "content": message}],
+        "temperature": 0.5
+    }
+    try:
+        response = requests.post(url, json=payload, headers=HEADERS)
+        response.raise_for_status()
+        return {"reply": response.json()["choices"][0]["message"]["content"]}
+    except Exception as e:
+        return {"error": str(e)}
+
+# 3. IMAGE LINK
+@app.get("/image/{idea}")
+def generate_image(idea: str):
+    safe_prompt = urllib.parse.quote(idea)
+    image_url = f"https://image.pollinations.ai/prompt/{safe_prompt}?model=flux&width=1024&height=1024&seed=42&nologo=true"
+    return {"idea": idea, "link": image_url}
+
+# 4. FACE TEXT DETECTOR
+@app.get("/face/{message}")
+def detect_face_emotion(message: str):
+    url = "https://gen.pollinations.ai/v1/chat/completions"
+
+    instruction = (
+        'You are an Emotion AI. You have to pick face for messages. '
+        'your faces: "Happy", "curious", "shoked", "sad", "normal", "angry", "annoyed". '
+        'Only say the face.'
+    )
+
     payload = {
         "model": "gemini-fast",
         "messages": [
-            {"role": "user", "content": message}
-        ]
-    }
-    
-    headers = {
-        "Content-Type": "application/json"
+            {"role": "system", "content": instruction},
+            {"role": "user", "content": f'message: "{message}"'}
+        ],
+        "temperature": 0.0
     }
 
     try:
-        # Send POST request to Pollinations
-        response = requests.post(url, json=payload, headers=headers)
-        response.raise_for_status() # Check for errors
-        
-        # Parse the JSON response
-        data = response.json()
-        
-        # Extract the specific content based on your example structure
-        # choices -> [0] -> message -> content
-        ai_reply = data["choices"][0]["message"]["content"]
-        
+        response = requests.post(url, json=payload, headers=HEADERS)
+        response.raise_for_status()
+
+        # Get just the text word (e.g. "annoyed")
+        face_name = response.json()["choices"][0]["message"]["content"].strip()
+
         return {
-            "user_message": message,
-            "ai_reply": ai_reply,
-            # "full_raw_response": data  # Uncomment if you want to see the full JSON
+            "message": message,
+            "face": face_name
         }
 
     except Exception as e:
         return {"error": str(e)}
 
 if __name__ == "__main__":
-    # Run on Replit's open port
     uvicorn.run(app, host="0.0.0.0", port=8080)
