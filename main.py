@@ -73,5 +73,5 @@ def detect_face_emotion(message: str):
 if __name__ == "__main__":
     # This block allows you to run "python main.py" locally
     # But Docker usually uses the CMD above.
-    port = int(os.environ.get("PORT", 8080))
+    port = int(os.environ.get("PORT", 8000))
     uvicorn.run(app, host="0.0.0.0", port=port)
