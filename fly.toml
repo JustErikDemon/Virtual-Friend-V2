@@ -1,23 +1,28 @@
-# fly.toml app configuration file generated for virtual-friend-v2 on 2026-01-16T22:35:23Z
-#
-# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
-#
+# STAGE 1: Build the virtual environment
+FROM python:3.12.12 AS builder
 
-app = 'virtual-friend-v2'
-primary_region = 'ams'
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+WORKDIR /app
 
-[build]
+RUN python -m venv .venv
+COPY requirements.txt ./
+RUN .venv/bin/pip install -r requirements.txt
 
-[http_service]
-  internal_port = 8080
-  force_https = true
-  auto_stop_machines = 'stop'
-  auto_start_machines = true
-  min_machines_running = 0
-  processes = ['app']
+# STAGE 2: The Final Image
+FROM python:3.12.12-slim
 
-[[vm]]
-  memory = '1gb'
-  cpu_kind = 'shared'
-  cpus = 1
-  memory_mb = 256
+WORKDIR /app
+
+# Copy the virtual environment from the builder
+COPY --from=builder /app/.venv .venv/
+COPY . .
+
+# Add the virtual environment to the system PATH
+ENV PATH="/app/.venv/bin:$PATH"
+
+# -----------------------------------------------------------
+# HERE IS THE LINE YOU ASKED FOR
+# It must be the LAST line of the file.
+# -----------------------------------------------------------
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
